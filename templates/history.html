@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}My Papers{% endblock %}
+{% block page_title %}My papers{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+        <form method="GET" action="{{ url_for('history') }}" class="d-flex flex-wrap gap-2">
+            <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()" aria-label="Show papers">
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All papers</option>
+                <option value="generated" {% if status_filter == 'generated' %}selected{% endif %}>Still to do</option>
+                <option value="submitted" {% if status_filter == 'submitted' %}selected{% endif %}>Finished</option>
+            </select>
+            <select name="subject_id" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()" aria-label="Subject">
+                <option value="all">All subjects</option>
+                {% for sub in subjects %}
+                    <option value="{{ sub.id }}" {% if subject_filter == sub.id|string %}selected{% endif %}>Class {{ sub.class_level }} &middot; {{ sub.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <a href="{{ url_for('generate_paper') }}" class="btn btn-primary-custom">
+            <i class="bi bi-plus-circle me-1"></i> Make a paper
+        </a>
+    </div>
+
+    {% if papers %}
+        <div class="custom-card">
+            {% for p in papers %}
+                <div class="paper-row paper-row-static">
+                    <div class="flex-grow-1">
+                        <div class="paper-row-title">
+                            {{ p.subject.name }} &middot; Class {{ p.subject.class_level }}
+                            {% if p.generation_mode and 'AI' in p.generation_mode %}
+                                <span class="badge badge-ai rounded-pill ms-1"><i class="bi bi-stars"></i> AI</span>
+                            {% endif %}
+                        </div>
+                        <div class="paper-row-sub">Paper #{{ p.id }} &middot; {{ p.total_marks }} marks &middot; {{ p.created_at.strftime('%d %b %Y') }}</div>
+                    </div>
+
+                    {% if p.status == 'submitted' %}
+                        <div class="score-chip-lg {% if p.percentage >= 75 %}good{% elif p.percentage >= 40 %}ok{% else %}low{% endif %}">
+                            {{ p.total_score|round(1) }}/{{ p.total_marks }}
+                        </div>
+                    {% else %}
+                        <span class="status-pill status-todo"><i class="bi bi-clock"></i> To do</span>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        {% if p.status == 'submitted' %}
+                            <a href="{{ url_for('results', paper_id=p.id) }}" class="btn btn-sm btn-primary-custom">Results</a>
+                        {% else %}
+                            <a href="{{ url_for('attempt_paper', paper_id=p.id) }}" class="btn btn-sm btn-primary-custom">Attempt</a>
+                        {% endif %}
+                        <a href="{{ url_for('view_paper', paper_id=p.id) }}" class="btn btn-sm btn-outline-secondary">Paper</a>
+                        <a href="{{ url_for('download_pdf', paper_id=p.id) }}" class="btn btn-sm btn-outline-secondary" title="Download PDF" aria-label="Download PDF">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="custom-card">
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-journal-x fs-1 d-block mb-2 opacity-50"></i>
+                <h5 class="fw-bold text-dark">No papers here yet</h5>
+                <p class="small mb-3">Make your first practice paper to get started.</p>
+                <a href="{{ url_for('generate_paper') }}" class="btn btn-primary-custom">
+                    <i class="bi bi-plus-circle me-1"></i> Make a paper
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

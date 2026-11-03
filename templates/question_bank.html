@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Question Bank & AI Generator — CBSE Practice{% endblock %}
+{% block page_title %}Curriculum Bank & AI Question Studio{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Top Action & Filter Row -->
+    <div class="custom-card mb-4">
+        <div class="custom-card-body p-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-lg-8">
+                    <form method="GET" action="{{ url_for('question_bank') }}" class="row g-2 align-items-center">
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Subject & Class</label>
+                            <select name="subject_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="all">All Subjects</option>
+                                {% for sub in subjects %}
+                                    <option value="{{ sub.id }}" {% if filters.subject_id == sub.id|string %}selected{% endif %}>
+                                        Class {{ sub.class_level }} — {{ sub.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Chapter</label>
+                            <select name="chapter_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="all">All Chapters</option>
+                                {% for ch in chapters %}
+                                    <option value="{{ ch.id }}" {% if filters.chapter_id == ch.id|string %}selected{% endif %}>
+                                        {{ ch.subject.name }} (Cl {{ ch.subject.class_level }}) - {{ ch.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Difficulty</label>
+                            <select name="difficulty" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="all" {% if filters.difficulty == 'all' %}selected{% endif %}>All Difficulties</option>
+                                <option value="Easy" {% if filters.difficulty == 'Easy' %}selected{% endif %}>Easy</option>
+                                <option value="Medium" {% if filters.difficulty == 'Medium' %}selected{% endif %}>Medium</option>
+                                <option value="Hard" {% if filters.difficulty == 'Hard' %}selected{% endif %}>Hard</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Type</label>
+                            <select name="question_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="all" {% if filters.question_type == 'all' %}selected{% endif %}>All Types</option>
+                                <option value="MCQ" {% if filters.question_type == 'MCQ' %}selected{% endif %}>MCQ</option>
+                                <option value="Short Answer" {% if filters.question_type == 'Short Answer' %}selected{% endif %}>Short Answer</option>
+                                <option value="Long Answer" {% if filters.question_type == 'Long Answer' %}selected{% endif %}>Long Answer</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                    <div class="d-flex gap-2 justify-content-lg-end">
+                        <button type="button" class="btn btn-ai btn-sm" data-bs-toggle="modal" data-bs-target="#aiGenerateModal">
+                            <i class="bi bi-stars"></i> Generate with AI
+                        </button>
+                        <button type="button" class="btn btn-primary-custom btn-sm" data-bs-toggle="modal" data-bs-target="#addQuestionModal">
+                            <i class="bi bi-plus-lg"></i> Add Question
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question List Card -->
+    <div class="custom-card">
+        <div class="custom-card-header">
+            <h2 class="custom-card-title"><i class="bi bi-collection-fill text-primary"></i>Question Repository ({{ questions|length }} Items)</h2>
+        </div>
+        <div class="custom-card-body p-0">
+            {% if questions %}
+                <div class="list-group list-group-flush">
+                    {% for q in questions %}
+                        <div class="list-group-item p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="badge bg-secondary text-white">Class {{ q.chapter.subject.class_level }}</span>
+                                    <span class="badge bg-light text-dark border">{{ q.chapter.name }}</span>
+                                    <span class="badge {% if q.difficulty == 'Easy' %}bg-success{% elif q.difficulty == 'Medium' %}bg-warning text-dark{% else %}bg-danger{% endif %} text-white">
+                                        {{ q.difficulty }}
+                                    </span>
+                                    <span class="badge bg-light text-secondary border">{{ q.question_type }}</span>
+                                    {% if q.source and 'AI' in q.source %}
+                                        <span class="badge badge-ai"><i class="bi bi-stars"></i> AI Generated</span>
+                                    {% endif %}
+                                </div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1 fw-bold">
+                                    {{ q.marks }} {{ 'Mark' if q.marks == 1 else 'Marks' }}
+                                </span>
+                            </div>
+
+                            <p class="text-dark fw-semibold mb-2">{{ q.question_text }}</p>
+
+                            {% if q.options %}
+                                <div class="bg-light p-2.5 rounded-3 mb-3 small">
+                                    <div class="fw-semibold text-muted mb-1">Options:</div>
+                                    <div class="row g-1">
+                                        {% for opt in q.options %}
+                                            <div class="col-sm-6 text-secondary">{{ opt }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- Collapsible Solution Accordion -->
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#solution{{ q.id }}">
+                                    <i class="bi bi-chevron-down me-1"></i> View Official Answer & Step-by-Step Marking Key
+                                </button>
+                                <div class="collapse mt-2" id="solution{{ q.id }}">
+                                    <div class="solution-reveal-card">
+                                        <div class="d-flex align-items-center gap-2 answer-title">
+                                            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                                            <span>Correct Answer: <strong>{{ q.correct_answer }}</strong></span>
+                                        </div>
+                                        {% if q.explanation %}
+                                            <div class="steps-box">
+                                                <div class="fw-bold text-secondary mb-1"><i class="bi bi-journal-text me-1"></i> Step-by-step Solution:</div>
+                                                <div style="white-space: pre-line;">{{ q.explanation }}</div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-search fs-1 text-secondary opacity-50 mb-2 d-block"></i>
+                    <h5 class="fw-bold text-dark">No Questions Found</h5>
+                    <p class="small">Try changing your filters or use the AI Generator above to create new questions.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Generate Questions with AI (LLM) -->
+<div class="modal fade" id="aiGenerateModal" tabindex="-1" aria-labelledby="aiGenerateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom" style="background: #16325c; color: #fff;">
+                <h5 class="modal-title fw-bold" id="aiGenerateModalLabel">
+                    <i class="bi bi-stars me-2"></i> AI Question Studio (Powered by LLM)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="aiGenerateForm" onsubmit="event.preventDefault(); triggerAIGeneration();">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="ai_chapter_id" class="form-label small fw-bold text-secondary">Chapter / Topic <span class="text-danger">*</span></label>
+                            <select id="ai_chapter_id" class="form-select" required>
+                                {% for ch in chapters %}
+                                    <option value="{{ ch.id }}">Class {{ ch.subject.class_level }} {{ ch.subject.name }} — {{ ch.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="ai_count" class="form-label small fw-bold text-secondary">Number of Questions</label>
+                            <select id="ai_count" class="form-select">
+                                <option value="1">1 Question</option>
+                                <option value="2">2 Questions</option>
+                                <option value="3" selected>3 Questions</option>
+                                <option value="5">5 Questions</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="ai_difficulty" class="form-label small fw-bold text-secondary">Difficulty</label>
+                            <select id="ai_difficulty" class="form-select">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Hard">Hard</option>
+                                <option value="Mixed">Mixed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label for="ai_type" class="form-label small fw-bold text-secondary">Question Type</label>
+                            <select id="ai_type" class="form-select">
+                                <option value="Mixed" selected>Mixed (MCQ & Subjective)</option>
+                                <option value="MCQ">Multiple Choice (MCQ)</option>
+                                <option value="Short Answer">Short Answer</option>
+                                <option value="Long Answer">Long Answer</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="ai_custom_prompt" class="form-label small fw-bold text-secondary">Custom Focus / Topics (Optional)</label>
+                            <input type="text" id="ai_custom_prompt" class="form-control" placeholder="e.g. Focus on real-life applications and proofs...">
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-ai" id="btnRunAIGen" onclick="triggerAIGeneration()">
+                            <i class="bi bi-stars me-1"></i> Synthesize with AI
+                        </button>
+                    </div>
+                </form>
+
+                <!-- AI Output Preview Section -->
+                <div id="aiOutputContainer" style="display: none;">
+                    <hr>
+                    <h6 class="fw-bold text-purple mb-3"><i class="bi bi-check2-all me-1"></i> Generated Questions Preview:</h6>
+                    <div id="aiGeneratedList" class="d-flex flex-column gap-3"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add New Question Manually -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1" aria-labelledby="addQuestionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form action="{{ url_for('add_question') }}" method="POST">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold text-dark" id="addQuestionModalLabel">
+                        <i class="bi bi-plus-circle text-primary me-2"></i>Add Question to Bank
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="modal_chapter_id" class="form-label small fw-bold text-secondary">Chapter / Topic <span class="text-danger">*</span></label>
+                            <select name="chapter_id" id="modal_chapter_id" class="form-select" required>
+                                {% for ch in chapters %}
+                                    <option value="{{ ch.id }}">Class {{ ch.subject.class_level }} {{ ch.subject.name }} — {{ ch.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="modal_marks" class="form-label small fw-bold text-secondary">Marks <span class="text-danger">*</span></label>
+                            <input type="number" name="marks" id="modal_marks" class="form-control" value="1" min="1" max="10" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="modal_difficulty" class="form-label small fw-bold text-secondary">Difficulty</label>
+                            <select name="difficulty" id="modal_difficulty" class="form-select">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Hard">Hard</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_question_type" class="form-label small fw-bold text-secondary">Question Type</label>
+                        <select name="question_type" id="modal_question_type" class="form-select" onchange="toggleModalOptions(this.value)">
+                            <option value="Short Answer">Short Answer</option>
+                            <option value="MCQ">Multiple Choice (MCQ)</option>
+                            <option value="Long Answer">Long Answer</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_question_text" class="form-label small fw-bold text-secondary">Question Statement <span class="text-danger">*</span></label>
+                        <textarea name="question_text" id="modal_question_text" rows="3" class="form-control" required placeholder="Enter the complete question text..."></textarea>
+                    </div>
+
+                    <!-- MCQ Options (Hidden by default) -->
+                    <div id="modalOptionsSection" class="mb-3" style="display: none;">
+                        <label class="form-label small fw-bold text-secondary">MCQ Options (at least 2 required)</label>
+                        <div class="row g-2">
+                            <div class="col-md-6"><input type="text" name="opt_1" class="form-control" placeholder="A) Option A"></div>
+                            <div class="col-md-6"><input type="text" name="opt_2" class="form-control" placeholder="B) Option B"></div>
+                            <div class="col-md-6"><input type="text" name="opt_3" class="form-control" placeholder="C) Option C"></div>
+                            <div class="col-md-6"><input type="text" name="opt_4" class="form-control" placeholder="D) Option D"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_correct_answer" class="form-label small fw-bold text-secondary">Correct Answer <span class="text-danger">*</span></label>
+                        <input type="text" name="correct_answer" id="modal_correct_answer" class="form-control" required placeholder="e.g. Option A, or 25 cm, etc.">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_explanation" class="form-label small fw-bold text-secondary">Step-by-step Solution / Marking Guidance</label>
+                        <textarea name="explanation" id="modal_explanation" rows="3" class="form-control" placeholder="Provide step-by-step marking breakdown..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Save Question</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function toggleModalOptions(type) {
+        const sec = document.getElementById('modalOptionsSection');
+        if (sec) {
+            sec.style.display = (type === 'MCQ') ? 'block' : 'none';
+        }
+    }
+
+    async function triggerAIGeneration() {
+        const chapterId = document.getElementById('ai_chapter_id').value;
+        const count = document.getElementById('ai_count').value;
+        const difficulty = document.getElementById('ai_difficulty').value;
+        const qType = document.getElementById('ai_type').value;
+        const prompt = document.getElementById('ai_custom_prompt').value;
+        const btn = document.getElementById('btnRunAIGen');
+        const outContainer = document.getElementById('aiOutputContainer');
+        const listEl = document.getElementById('aiGeneratedList');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Synthesizing with LLM...';
+        outContainer.style.display = 'block';
+        listEl.innerHTML = '<div class="text-center py-3 text-muted small"><div class="spinner-border spinner-border-sm text-purple me-2"></div> Generating questions with CBSE board rubrics...</div>';
+
+        try {
+            const res = await fetch('/api/ai-generate-questions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chapter_id: chapterId,
+                    count: count,
+                    difficulty: difficulty,
+                    question_type: qType,
+                    custom_prompt: prompt
+                })
+            });
+
+            const data = await res.json();
+            if (data.success && data.questions) {
+                listEl.innerHTML = '';
+                data.questions.forEach((q, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'p-3 border rounded-3 bg-light';
+                    card.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge badge-ai"><i class="bi bi-stars"></i> Question ${idx+1} (${q.marks} Marks - ${q.difficulty})</span>
+                            <button class="btn btn-sm btn-primary-custom" onclick="saveAIQuestionToBank(${chapterId}, ${JSON.stringify(q).replace(/"/g, '&quot;')}, this)">
+                                <i class="bi bi-plus-lg"></i> Save to Bank
+                            </button>
+                        </div>
+                        <p class="fw-bold text-dark mb-2 mt-1">${q.question_text}</p>
+                        ${q.options ? `<div class="small text-muted mb-2">${q.options.join(' • ')}</div>` : ''}
+                        <div class="small text-success fw-bold">Answer: ${q.correct_answer}</div>
+                        <div class="small text-secondary mt-1" style="white-space: pre-line;">${q.explanation}</div>
+                    `;
+                    listEl.appendChild(card);
+                });
+            } else {
+                listEl.innerHTML = `<div class="alert alert-danger small">${data.error || 'Generation failed'}</div>`;
+            }
+        } catch (err) {
+            listEl.innerHTML = `<div class="alert alert-danger small">Network error generating questions.</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i> Synthesize with AI';
+        }
+    }
+
+    async function saveAIQuestionToBank(chapterId, questionObj, btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+            const res = await fetch('/api/ai-save-generated-question', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chapter_id: chapterId,
+                    question: questionObj
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                btnEl.className = 'btn btn-sm btn-success';
+                btnEl.innerHTML = '<i class="bi bi-check-lg"></i> Saved!';
+            } else {
+                btnEl.disabled = false;
+                btnEl.innerHTML = 'Retry';
+            }
+        } catch (err) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = 'Error';
+        }
+    }
+</script>
+{% endblock %}

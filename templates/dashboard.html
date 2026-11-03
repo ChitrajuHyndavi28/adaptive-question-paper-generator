@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% from "_macros.html" import level_pill %}
+
+{% block title %}My Dashboard{% endblock %}
+{% block page_title %}My Dashboard{% endblock %}
+
+{% block content %}
+{% set first_name = (current_student.name.split()[0] if current_student else 'there') %}
+{% set weakest = chapters_sorted[0] if chapters_sorted and chapters_sorted[0].status == 'Weak' else None %}
+
+<div class="container-fluid p-0">
+
+    <!-- Greeting -->
+    <div class="mb-4">
+        <h2 class="h3 fw-bold text-dark mb-1">Hi {{ first_name }}!</h2>
+        <p class="text-secondary mb-0">Class {{ current_student.class_level if current_student else 10 }} &middot; here is how your practice is going.</p>
+    </div>
+
+    <!-- What to do next: one clear suggestion -->
+    <div class="next-step mb-4">
+        <div class="next-step-text">
+            <div class="next-step-label">Your next step</div>
+            {% if pending_paper %}
+                <div class="next-step-title">You have a paper waiting for you</div>
+                <div class="next-step-sub">Paper #{{ pending_paper.id }} &middot; {{ pending_paper.subject.name }} &middot; {{ pending_paper.total_marks }} marks</div>
+            {% elif metrics.total_attempts_completed == 0 %}
+                <div class="next-step-title">Make your first practice paper</div>
+                <div class="next-step-sub">Pick a subject and the chapters you want to practise. It takes less than a minute.</div>
+            {% elif weakest %}
+                <div class="next-step-title">Practise {{ weakest.chapter_name }}</div>
+                <div class="next-step-sub">This is the chapter that needs the most work. Your next paper will give it extra marks.</div>
+            {% else %}
+                <div class="next-step-title">Nice work! Try another paper</div>
+                <div class="next-step-sub">Keep going to stay sharp. Try a bigger paper to challenge yourself.</div>
+            {% endif %}
+        </div>
+        {% if pending_paper %}
+            <a href="{{ url_for('attempt_paper', paper_id=pending_paper.id) }}" class="btn btn-light btn-lg next-step-btn">
+                <i class="bi bi-pencil-square me-1"></i> Continue paper
+            </a>
+        {% else %}
+            <a href="{{ url_for('generate_paper') }}" class="btn btn-light btn-lg next-step-btn">
+                <i class="bi bi-plus-circle me-1"></i> Make a paper
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Three simple numbers -->
+    <div class="row g-3 mb-4">
+        <div class="col-4">
+            <div class="mini-stat">
+                <div class="mini-stat-value">{{ metrics.total_attempts_completed }}</div>
+                <div class="mini-stat-label">Papers finished</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="mini-stat">
+                <div class="mini-stat-value">
+                    {% if metrics.total_attempts_completed > 0 %}{{ metrics.average_score_percentage|round|int }}%{% else %}&ndash;{% endif %}
+                </div>
+                <div class="mini-stat-label">Average score</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="mini-stat">
+                <div class="mini-stat-value">{{ metrics.weak_topics_count }}</div>
+                <div class="mini-stat-label">{{ 'Chapter' if metrics.weak_topics_count == 1 else 'Chapters' }} to work on</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chapters: one card each, the ones that need practice come first -->
+    <h3 class="section-heading">Your chapters</h3>
+    <div class="row g-3 mb-4">
+        {% for topic in chapters_sorted %}
+            <div class="col-md-6 col-xl-4">
+                <div class="chapter-card status-{{ topic.status|lower }}">
+                    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                        <div class="chapter-name">{{ topic.chapter_name }}</div>
+                        {{ level_pill(topic.status) }}
+                    </div>
+                    <div class="chapter-sub">{{ topic.subject_name }} &middot; Class {{ topic.class_level }}</div>
+                    {% if topic.has_data %}
+                        <div class="chapter-bar"><div style="width: {{ topic.mastery_score|round|int }}%;"></div></div>
+                        <div class="chapter-note">
+                            {{ topic.mastery_score|round|int }}% understood
+                            &middot; last paper {{ topic.latest_score_percentage|round|int }}%
+                        </div>
+                    {% else %}
+                        <div class="chapter-bar"><div style="width: 0%;"></div></div>
+                        <div class="chapter-note">You have not practised this yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Score graph -->
+    {% if metrics.total_attempts_completed > 0 %}
+        <h3 class="section-heading">Your scores over time</h3>
+        <div class="custom-card mb-4">
+            <div class="custom-card-body">
+                <div style="height: 230px; position: relative;">
+                    <canvas id="scoreTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Questions to look at again -->
+    <h3 class="section-heading">Questions to look at again</h3>
+    <div class="custom-card mb-4">
+        <div class="custom-card-body">
+            {% if metrics.mistakes_log %}
+                {% for m in metrics.mistakes_log[:4] %}
+                    <details class="review-item">
+                        <summary>
+                            <span class="review-q">{{ m.question_text }}</span>
+                            <span class="review-meta">{{ m.chapter_name }} &middot; you got {{ m.marks_obtained }}/{{ m.marks_allocated }}</span>
+                        </summary>
+                        <div class="review-answer">
+                            <div><strong>Answer:</strong> {{ m.correct_answer }}</div>
+                            {% if m.explanation %}<div class="review-steps">{{ m.explanation }}</div>{% endif %}
+                        </div>
+                    </details>
+                {% endfor %}
+            {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-emoji-smile fs-3 d-block mb-1"></i>
+                    Nothing to review yet. Questions you miss will show up here.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent papers -->
+    <div class="d-flex justify-content-between align-items-center">
+        <h3 class="section-heading mb-0">Recent papers</h3>
+        <a href="{{ url_for('history') }}" class="small fw-semibold">See all papers</a>
+    </div>
+    <div class="custom-card mt-2 mb-4">
+        {% if metrics.all_attempts %}
+            {% for p in metrics.all_attempts[:5] %}
+                <a class="paper-row" href="{{ url_for('results', paper_id=p.id) }}">
+                    <div>
+                        <div class="paper-row-title">{{ p.subject.name }} &middot; Class {{ p.subject.class_level }}</div>
+                        <div class="paper-row-sub">Paper #{{ p.id }} &middot; {{ (p.submitted_at or p.created_at).strftime('%d %b %Y') }}</div>
+                    </div>
+                    <div class="score-chip-lg {% if p.percentage >= 75 %}good{% elif p.percentage >= 40 %}ok{% else %}low{% endif %}">
+                        {{ p.total_score|round(1) }}/{{ p.total_marks }}
+                    </div>
+                </a>
+            {% endfor %}
+        {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-journal-check fs-3 d-block mb-1"></i>
+                No finished papers yet.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    window.dashboardChartData = {
+        labels: {{ chart_labels|safe }},
+        mastery: {{ chart_mastery|safe }},
+        colors: {{ chart_colors|safe }}
+    };
+    window.dashboardTrendData = {
+        dates: {{ trend_dates|safe }},
+        scores: {{ trend_scores|safe }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

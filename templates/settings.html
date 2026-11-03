@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Student Profile — CBSE Adaptive Practice{% endblock %}
+{% block page_title %}Student Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            <div class="custom-card shadow-sm border-0 rounded-4 overflow-hidden bg-white">
+                <!-- Profile Header Banner -->
+                <div class="p-4 text-white" style="background: #16325c;">
+                    <div class="d-flex flex-column flex-sm-row align-items-center gap-3 text-center text-sm-start">
+                        <div class="position-relative">
+                            <div class="avatar-circle shadow" style="width: 76px; height: 76px; font-size: 2rem; border: 3px solid rgba(255,255,255,0.8); background: #ffffff; color: #4361ee;">
+                                {% if current_student and current_student.avatar_url %}
+                                    <img src="{{ current_student.avatar_url }}" alt="{{ current_student.name }}">
+                                {% else %}
+                                    {{ current_student.name[0] if current_student else 'S' }}
+                                {% endif %}
+                            </div>
+                            <!-- Google Mini Badge -->
+                            <div class="position-absolute bottom-0 end-0 bg-white rounded-circle p-1 shadow-sm d-flex align-items-center justify-content-center" style="width: 26px; height: 26px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+                                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.04 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2 class="h4 fw-bold mb-1 text-white">{{ current_student.name if current_student else 'Student' }}</h2>
+                            <div class="text-white-50 small mb-2">
+                                <i class="bi bi-envelope me-1"></i> {{ current_student.email if current_student else 'student.cbse@gmail.com' }}
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-sm-start">
+                                <span class="badge bg-white bg-opacity-20 text-white rounded-pill px-2.5 py-1 small">
+                                    <i class="bi bi-mortarboard me-1"></i> Class {{ current_student.class_level if current_student else 10 }} CBSE
+                                </span>
+                                <span class="badge bg-white bg-opacity-20 text-white rounded-pill px-2.5 py-1 small">
+                                    <i class="bi bi-shield-check me-1"></i> Google Verified
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4">
+                    <!-- Quick Stats Overview -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <div class="small text-muted mb-1">Tests Completed</div>
+                                <div class="h4 fw-bold text-success mb-0">{{ metrics.total_attempts_completed if metrics else 0 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <div class="small text-muted mb-1">Average Score</div>
+                                <div class="h4 fw-bold text-purple mb-0" style="color: #1f3f73;">
+                                    {% if metrics and metrics.total_attempts_completed > 0 %}
+                                        {{ metrics.average_score_percentage }}%
+                                    {% else %}
+                                        <span class="text-muted fs-6">New</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <div class="small text-muted mb-1">Weak Topics</div>
+                                <div class="h4 fw-bold text-danger mb-0">{{ metrics.weak_topics_count if metrics else 0 }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Academic Standard Preference Setting Form -->
+                    <div class="mb-4 pb-4 border-bottom">
+                        <h3 class="h6 fw-bold text-dark mb-3">
+                            <i class="bi bi-mortarboard text-primary me-1"></i> Academic Standard
+                        </h3>
+                        <form action="{{ url_for('settings') }}" method="POST">
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="p-3 border rounded-3 d-flex align-items-center gap-2 cursor-pointer w-100 bg-white" style="cursor: pointer;">
+                                        <input class="form-check-input mt-0" type="radio" name="class_level" value="10" {% if not current_student or current_student.class_level == 10 %}checked{% endif %}>
+                                        <div>
+                                            <div class="fw-bold text-dark">Class 10</div>
+                                            <div class="small text-muted">CBSE Secondary</div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-6">
+                                    <label class="p-3 border rounded-3 d-flex align-items-center gap-2 cursor-pointer w-100 bg-white" style="cursor: pointer;">
+                                        <input class="form-check-input mt-0" type="radio" name="class_level" value="12" {% if current_student and current_student.class_level == 12 %}checked{% endif %}>
+                                        <div>
+                                            <div class="fw-bold text-dark">Class 12</div>
+                                            <div class="small text-muted">CBSE Senior Sec.</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-outline-primary btn-sm px-3 rounded-pill">
+                                <i class="bi bi-check2 me-1"></i> Save Class Standard
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Account Actions -->
+                    <div>
+                        <h3 class="h6 fw-bold text-dark mb-3">
+                            <i class="bi bi-gear text-secondary me-1"></i> Account Actions
+                        </h3>
+                        <div class="d-flex flex-column flex-sm-row gap-2">
+                            <a href="{{ url_for('login', switch='1') }}" class="btn btn-outline-secondary py-2 flex-grow-1">
+                                <i class="bi bi-arrow-repeat me-1"></i> Switch Account
+                            </a>
+                            <a href="{{ url_for('logout') }}" class="btn btn-outline-danger py-2 px-4">
+                                <i class="bi bi-box-arrow-right me-1"></i> Sign Out
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

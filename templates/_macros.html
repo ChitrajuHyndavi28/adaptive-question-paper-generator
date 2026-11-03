@@ -1,0 +1,23 @@
+{# Small tag shown on a question the student has already solved in an earlier paper. #}
+{% macro solved_badge(info) %}
+    {% if info %}
+        <a class="badge-solved" href="{{ url_for('results', paper_id=info.paper_id) }}"
+           title="Open Paper #{{ info.paper_id }} to see your earlier answer">
+            <i class="bi bi-arrow-repeat"></i>
+            Previously solved on {{ info.date }} &middot; you scored {{ info.obtained }}/{{ info.available }}
+        </a>
+    {% endif %}
+{% endmacro %}
+
+{# Chapter level in plain words. status is Weak / Average / Strong / Unattempted. #}
+{% macro level_pill(status) %}
+    {% if status == 'Weak' %}
+        <span class="badge-status badge-weak"><i class="bi bi-flag-fill"></i> Needs practice</span>
+    {% elif status == 'Average' %}
+        <span class="badge-status badge-average"><i class="bi bi-graph-up-arrow"></i> Getting better</span>
+    {% elif status == 'Strong' %}
+        <span class="badge-status badge-strong"><i class="bi bi-star-fill"></i> Strong</span>
+    {% else %}
+        <span class="badge-status badge-unattempted"><i class="bi bi-stars"></i> Not tried yet</span>
+    {% endif %}
+{% endmacro %}

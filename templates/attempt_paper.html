@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% from "_macros.html" import solved_badge %}
+
+{% block title %}Practice & Self-Assessment — Paper #{{ paper.id }}{% endblock %}
+{% block page_title %}Attempt Paper #{{ paper.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+        <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to paper
+        </a>
+        <span class="text-secondary small">{{ paper.subject.name }} &middot; Class {{ paper.subject.class_level }} &middot; {{ paper.total_marks }} marks</span>
+    </div>
+
+    {% if previous %}
+        <div class="notice notice-solved mb-3">
+            <i class="bi bi-arrow-repeat"></i>
+            <div><strong>{{ previous|length }} of {{ paper.paper_questions|length }} questions were solved in an earlier paper.</strong>
+            Look for the <span class="badge-solved badge-solved-inline">Previously solved</span> tag.</div>
+        </div>
+    {% endif %}
+
+    <details class="how-to mb-3">
+        <summary>How does this page work?</summary>
+        <ol class="small text-secondary mt-2 mb-0 ps-3">
+            <li>Multiple-choice: tap an option and it is checked for you.</li>
+            <li>Written answers: type your steps, then open the solution and give yourself marks, or press <strong>AI Grade</strong>.</li>
+            <li>When every question has marks, press <strong>Submit</strong> to update your topic ratings.</li>
+        </ol>
+    </details>
+
+    <form action="{{ url_for('attempt_paper', paper_id=paper.id) }}" method="POST" id="attemptPaperForm">
+        <div class="row g-4">
+            <!-- Left: Question By Question Mark Entry Studio -->
+            <div class="col-lg-8">
+                <div class="custom-card mb-4">
+                    <div class="custom-card-header">
+                        <h2 class="custom-card-title"><i class="bi bi-card-checklist text-primary"></i>{{ paper.paper_questions|length }} questions</h2>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnRevealAllSolutions">
+                            <i class="bi bi-eye me-1"></i> Show all solutions
+                        </button>
+                    </div>
+                    <div class="custom-card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for pq in paper.paper_questions %}
+                                <div class="list-group-item p-4 question-attempt-card" id="qCard{{ pq.id }}" data-pq-id="{{ pq.id }}" data-max-marks="{{ pq.marks_allocated }}" data-correct-answer="{{ pq.question.correct_answer }}">
+                                    <!-- Header Row -->
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <span class="badge bg-primary text-white rounded-pill px-2.5">Q{{ pq.order_index }}</span>
+                                            <span class="badge bg-light text-secondary border">{{ pq.question.chapter.name }}</span>
+                                            <span class="badge bg-light text-muted border">{{ pq.question.question_type }}</span>
+                                            {% if pq.question.source and 'AI' in pq.question.source %}
+                                                <span class="badge badge-ai"><i class="bi bi-stars"></i> AI generated</span>
+                                            {% endif %}
+                                        </div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1 fw-bold">
+                                            {{ pq.marks_allocated }} {{ 'Mark' if pq.marks_allocated == 1 else 'Marks' }}
+                                        </span>
+                                    </div>
+
+                                    {% if previous.get(pq.question_id) %}
+                                        <div class="mb-2">{{ solved_badge(previous.get(pq.question_id)) }}</div>
+                                    {% endif %}
+
+                                    <!-- Question Text -->
+                                    <p class="text-dark fw-bold mb-3 fs-6" style="line-height: 1.5;">{{ pq.question.question_text }}</p>
+
+                                    <!-- MCQ Interactive Option Buttons (If MCQ) -->
+                                    {% if pq.question.options %}
+                                        <div class="mb-3">
+                                            <div class="small fw-semibold text-muted mb-2">Choose one:</div>
+                                            <div class="d-flex flex-column gap-1.5 mcq-container" data-pq-id="{{ pq.id }}" data-correct="{{ pq.question.correct_answer }}">
+                                                {% for opt in pq.question.options %}
+                                                    <div class="mcq-option-item" onclick="handleMcqSelect({{ pq.id }}, '{{ opt|replace("'", "\\'") }}', '{{ pq.question.correct_answer|replace("'", "\\'") }}', {{ pq.marks_allocated }})">
+                                                        <input class="form-check-input me-2 mcq-radio" type="radio" name="mcq_choice_{{ pq.id }}" value="{{ opt }}" id="opt_{{ pq.id }}_{{ loop.index }}">
+                                                        <label class="form-check-label w-100 cursor-pointer mb-0" for="opt_{{ pq.id }}_{{ loop.index }}">
+                                                            {{ opt }}
+                                                        </label>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Student Answer Working Area -->
+                                    <div class="mb-3">
+                                        <label for="answer_{{ pq.id }}" class="form-label small fw-semibold text-secondary mb-1">
+                                            Your answer (optional)
+                                        </label>
+                                        <div class="input-group">
+                                            <textarea name="answer_{{ pq.id }}" 
+                                                      id="answer_{{ pq.id }}" 
+                                                      rows="2" 
+                                                      class="form-control student-answer-input" 
+                                                      placeholder="Write your steps here..."></textarea>
+                                            <button type="button" 
+                                                    class="btn btn-outline-primary btn-ai-evaluate" 
+                                                    onclick="evaluateWithAI({{ pq.id }}, {{ pq.marks_allocated }})"
+                                                    title="Use AI to grade and give step feedback">
+                                                <i class="bi bi-stars me-1"></i> AI grade
+                                            </button>
+                                        </div>
+                                        <div id="aiFeedbackBox_{{ pq.id }}" class="mt-2 small p-2.5 rounded-3 bg-purple bg-opacity-10 border border-purple border-opacity-25" style="display: none;">
+                                            <div class="fw-bold text-purple mb-1"><i class="bi bi-robot me-1"></i> AI Evaluation:</div>
+                                            <div class="ai-feedback-text text-dark"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Solution & Marking Scheme Accordion (Always Available to Help Student) -->
+                                    <div class="mb-3">
+                                        <button class="btn btn-sm btn-outline-success rounded-pill px-3 toggle-solution-btn" type="button" data-bs-toggle="collapse" data-bs-target="#solutionCollapse{{ pq.id }}">
+                                            <i class="bi bi-lightbulb me-1"></i> <span>Show solution</span>
+                                        </button>
+                                        <div class="collapse solution-collapse mt-2" id="solutionCollapse{{ pq.id }}">
+                                            <div class="solution-reveal-card">
+                                                <div class="d-flex align-items-center gap-2 answer-title">
+                                                    <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                                                    <span>Answer: <strong>{{ pq.question.correct_answer }}</strong></span>
+                                                </div>
+                                                {% if pq.question.explanation %}
+                                                    <div class="steps-box">
+                                                        <div class="fw-bold text-secondary mb-1"><i class="bi bi-journal-text me-1"></i> Steps and marking scheme</div>
+                                                        <div style="white-space: pre-line;">{{ pq.question.explanation }}</div>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Marks Awarded Selection Row -->
+                                    <div class="bg-light p-3 rounded-3 border">
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                            <div>
+                                                <label for="marks_{{ pq.id }}" class="form-label small fw-bold text-secondary mb-1">
+                                                    Your marks for Q{{ pq.order_index }}
+                                                </label>
+                                                <!-- Quick Score Helper Chips -->
+                                                <div class="d-flex gap-1.5 flex-wrap">
+                                                    <button type="button" class="score-chip" onclick="setQuestionMark({{ pq.id }}, 0)">
+                                                        <i class="bi bi-x-circle text-danger"></i> None
+                                                    </button>
+                                                    {% if pq.marks_allocated > 1 %}
+                                                        <button type="button" class="score-chip" onclick="setQuestionMark({{ pq.id }}, {{ (pq.marks_allocated / 2)|round(1) }})">
+                                                            <i class="bi bi-dash-circle text-warning"></i> Half ({{ (pq.marks_allocated / 2)|round(1) }})
+                                                        </button>
+                                                    {% endif %}
+                                                    <button type="button" class="score-chip" onclick="setQuestionMark({{ pq.id }}, {{ pq.marks_allocated }})">
+                                                        <i class="bi bi-check-circle text-success"></i> Full ({{ pq.marks_allocated }})
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div style="width: 140px;">
+                                                <div class="input-group input-group-sm">
+                                                    <input type="number" 
+                                                           name="marks_{{ pq.id }}" 
+                                                           id="marks_{{ pq.id }}" 
+                                                           class="form-control form-control-lg mark-input fw-bold text-primary text-center" 
+                                                           data-max-mark="{{ pq.marks_allocated }}" 
+                                                           min="0" 
+                                                           max="{{ pq.marks_allocated }}" 
+                                                           step="0.5" 
+                                                           value="0" 
+                                                           required>
+                                                    <span class="input-group-text">/ {{ pq.marks_allocated }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" name="feedback_{{ pq.id }}" id="feedback_{{ pq.id }}" value="">
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Sticky Live Score Summary -->
+            <div class="col-lg-4">
+                <div class="custom-card sticky-top shadow-sm" style="top: 90px;">
+                    <div class="custom-card-header bg-light">
+                        <h2 class="custom-card-title"><i class="bi bi-calculator text-primary"></i>Your score</h2>
+                    </div>
+                    <div class="custom-card-body">
+                        <!-- Score Display -->
+                        <div class="text-center p-3 rounded-4 mb-4" style="background: #eef2f8; border: 1.5px solid #c7d2fe;">
+                            <div class="text-muted small text-uppercase fw-bold mb-1">Total so far</div>
+                            <div class="display-5 fw-extrabold text-primary mb-1">
+                                <span id="liveTotalScore" data-max-marks="{{ paper.total_marks }}">0</span>
+                                <span class="text-muted fs-4">/ {{ paper.total_marks }}</span>
+                            </div>
+                            <div class="small fw-bold text-secondary" id="livePercentageDisplay">0% Achieved</div>
+                        </div>
+
+                        <div class="mb-3 small text-secondary">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Questions marked:</span>
+                                <span class="fw-bold" id="answeredCount">0 / {{ paper.paper_questions|length }}</span>
+                            </div>
+                            <div class="progress" style="height: 6px; border-radius: 6px;">
+                                <div class="progress-bar bg-primary" id="answeredProgress" role="progressbar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <p class="small text-muted mb-4">Submitting updates your topic ratings, so your next paper focuses on what you need most.</p>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary-custom btn-lg shadow-sm" id="btnSubmitMarks">
+                                <i class="bi bi-check2-circle me-1"></i> Submit paper
+                            </button>
+                            <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/paper.js') }}"></script>
+<script>
+    // Quick Mark Setter
+    function setQuestionMark(pqId, value) {
+        const input = document.getElementById(`marks_${pqId}`);
+        if (input) {
+            input.value = value;
+            input.dispatchEvent(new Event('input'));
+        }
+    }
+
+    // MCQ Auto-Check and Score
+    function handleMcqSelect(pqId, selectedOpt, correctAns, maxMarks) {
+        const card = document.getElementById(`qCard${pqId}`);
+        const answerInput = document.getElementById(`answer_${pqId}`);
+        const feedbackInput = document.getElementById(`feedback_${pqId}`);
+        
+        if (answerInput) {
+            answerInput.value = selectedOpt;
+        }
+
+        // Highlight selected
+        const optItems = card.querySelectorAll('.mcq-option-item');
+        optItems.forEach(item => {
+            item.classList.remove('selected', 'correct-match', 'wrong-match');
+            if (item.textContent.trim().includes(selectedOpt.trim())) {
+                item.classList.add('selected');
+            }
+        });
+
+        // Compare with correct answer
+        const isMatch = selectedOpt.trim().toLowerCase().startsWith(correctAns.trim().toLowerCase()) ||
+                        correctAns.trim().toLowerCase().includes(selectedOpt.trim().toLowerCase()) ||
+                        selectedOpt.trim().toLowerCase().includes(correctAns.trim().toLowerCase());
+
+        if (isMatch) {
+            setQuestionMark(pqId, maxMarks);
+            if (feedbackInput) feedbackInput.value = "Correct MCQ choice.";
+        } else {
+            setQuestionMark(pqId, 0);
+            if (feedbackInput) feedbackInput.value = "Incorrect MCQ choice.";
+        }
+
+        // Reveal solution for learning
+        const collapseEl = document.getElementById(`solutionCollapse${pqId}`);
+        if (collapseEl && !collapseEl.classList.contains('show')) {
+            const bsCollapse = new bootstrap.Collapse(collapseEl, { toggle: true });
+        }
+    }
+
+    // AI Evaluate Function
+    async function evaluateWithAI(pqId, maxMarks) {
+        const card = document.getElementById(`qCard${pqId}`);
+        const answerInput = document.getElementById(`answer_${pqId}`);
+        const studentAns = answerInput ? answerInput.value.trim() : '';
+        const feedbackBox = document.getElementById(`aiFeedbackBox_${pqId}`);
+        const feedbackText = feedbackBox?.querySelector('.ai-feedback-text');
+
+        if (!studentAns) {
+            if (feedbackBox) {
+                feedbackBox.style.display = 'block';
+                if (feedbackText) feedbackText.textContent = 'Type your answer in the box above first, then press AI grade.';
+            }
+            return;
+        }
+
+        if (feedbackBox) {
+            feedbackBox.style.display = 'block';
+            if (feedbackText) feedbackText.innerHTML = '<span class="spinner-border spinner-border-sm text-purple me-1"></span> AI evaluating against CBSE marking rubric...';
+        }
+
+        try {
+            const qText = card.querySelector('p')?.innerText || '';
+            const correctAns = card.dataset.correctAnswer || '';
+            const expText = card.querySelector('.steps-box')?.innerText || '';
+
+            const res = await fetch('/api/ai-evaluate-answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question_text: qText,
+                    student_answer: studentAns,
+                    correct_answer: correctAns,
+                    explanation: expText,
+                    max_marks: maxMarks
+                })
+            });
+
+            const data = await res.json();
+            if (data.success && data.evaluation) {
+                const evalData = data.evaluation;
+                setQuestionMark(pqId, evalData.marks_awarded);
+                
+                if (feedbackText) {
+                    feedbackText.innerHTML = `<strong>Awarded: ${evalData.marks_awarded}/${maxMarks} Marks</strong><br/>${evalData.feedback}`;
+                    if (evalData.suggestion) {
+                        feedbackText.innerHTML += `<div class="mt-1 text-muted"><small>💡 Tip: ${evalData.suggestion}</small></div>`;
+                    }
+                }
+
+                // Also reveal solution
+                const collapseEl = document.getElementById(`solutionCollapse${pqId}`);
+                if (collapseEl && !collapseEl.classList.contains('show')) {
+                    new bootstrap.Collapse(collapseEl, { toggle: true });
+                }
+            } else {
+                if (feedbackText) feedbackText.textContent = 'Could not complete AI evaluation. Please self-grade using the solution key.';
+            }
+        } catch (err) {
+            if (feedbackText) feedbackText.textContent = 'AI evaluation error. Please check the solution below.';
+        }
+    }
+
+    // Reveal All Solutions Toggle
+    document.getElementById('btnRevealAllSolutions')?.addEventListener('click', () => {
+        document.querySelectorAll('.solution-collapse').forEach(el => {
+            const bsCollapse = new bootstrap.Collapse(el, { show: true });
+        });
+    });
+</script>
+{% endblock %}

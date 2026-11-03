@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% from "_macros.html" import solved_badge %}
+
+{% block title %}Practice Paper #{{ paper.id }} — {{ paper.subject.name }}{% endblock %}
+{% block page_title %}Practice Paper #{{ paper.id }}{% endblock %}
+
+{% block content %}
+{% set total_q = paper.paper_questions|length %}
+{% set repeat_count = previous|length %}
+
+<div class="container-fluid p-0">
+    <!-- Top bar: where am I, and what can I do next -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> History
+            </a>
+            {% if paper.status == 'submitted' %}
+                <span class="status-pill status-done"><i class="bi bi-check-circle-fill"></i> Submitted</span>
+            {% else %}
+                <span class="status-pill status-todo"><i class="bi bi-clock-fill"></i> Not attempted yet</span>
+            {% endif %}
+            {% if paper.generation_mode and 'AI' in paper.generation_mode %}
+                <span class="badge badge-ai rounded-pill"><i class="bi bi-stars"></i> AI generated</span>
+            {% endif %}
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('download_pdf', paper_id=paper.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+            </a>
+            {% if paper.status == 'submitted' %}
+                <a href="{{ url_for('results', paper_id=paper.id) }}" class="btn btn-primary-custom">
+                    <i class="bi bi-award me-1"></i> View results
+                </a>
+            {% else %}
+                <a href="{{ url_for('attempt_paper', paper_id=paper.id) }}" class="btn btn-primary-custom">
+                    <i class="bi bi-pencil-square me-1"></i> Start attempting
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Repeat notice: tells the student up front which questions they have seen before -->
+    {% if repeat_count %}
+        <div class="notice notice-solved mb-3">
+            <i class="bi bi-arrow-repeat"></i>
+            <div>
+                <strong>{{ repeat_count }} of {{ total_q }} question{{ '' if total_q == 1 else 's' }} already solved before.</strong>
+                They are tagged <span class="badge-solved badge-solved-inline">Previously solved</span> below.
+                {% if total_q - repeat_count > 0 %}
+                    The other {{ total_q - repeat_count }} {{ 'is' if total_q - repeat_count == 1 else 'are' }} new to you.
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="notice notice-new mb-3">
+            <i class="bi bi-stars"></i>
+            <div><strong>All {{ total_q }} questions are new to you.</strong> You have not solved any of them before.</div>
+        </div>
+    {% endif %}
+
+    <!-- How the marks were split (compact; details on demand) -->
+    <div class="custom-card mb-4">
+        <div class="custom-card-body">
+            <div class="fw-semibold mb-2">How the {{ paper.total_marks }} marks are split</div>
+            <div class="split-list">
+                {% for item in chapter_distribution %}
+                    <div class="split-row">
+                        <span class="split-name">{{ item.chapter_name }}</span>
+                        <div class="split-bar"><div style="width: {{ item.percentage }}%;"></div></div>
+                        <span class="split-val">{{ item.marks }} marks</span>
+                    </div>
+                {% endfor %}
+            </div>
+            {% if paper.distribution_explanation %}
+                <details class="mt-3">
+                    <summary class="small text-primary fw-semibold">Why this split?</summary>
+                    <ul class="small text-secondary mt-2 mb-0 ps-3">
+                        {% for line in paper.distribution_explanation.split('\n') if line.strip() %}
+                            <li class="mb-1">{{ line|replace('**', '') }}</li>
+                        {% endfor %}
+                    </ul>
+                </details>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- The paper -->
+    <div class="paper-sheet shadow-sm mb-5">
+        <div class="paper-header">
+            <h2>{{ paper.subject.name|upper }} — CLASS {{ paper.subject.class_level }}</h2>
+            <div class="paper-meta-line">
+                <span><strong>{{ paper.total_marks }}</strong> marks</span>
+                <span><strong>{{ total_q }}</strong> questions</span>
+                <span>Paper #{{ paper.id }}</span>
+                <span>{{ paper.created_at.strftime('%d %b %Y') }}</span>
+            </div>
+        </div>
+
+        <p class="small text-secondary mb-4">
+            All questions are compulsory. Section A: 1-mark, Section B: 2-mark, Section C: 3-mark, Section D: 4–5 mark.
+            Write clear steps for every answer.
+        </p>
+
+        {% set sections = [
+            ('A', '1-mark questions', paper.paper_questions|selectattr('marks_allocated', 'equalto', 1)|list),
+            ('B', '2-mark questions', paper.paper_questions|selectattr('marks_allocated', 'equalto', 2)|list),
+            ('C', '3-mark questions', paper.paper_questions|selectattr('marks_allocated', 'equalto', 3)|list),
+            ('D', 'Long answer (4–5 marks)', paper.paper_questions|selectattr('marks_allocated', 'ge', 4)|list)
+        ] %}
+
+        {% for letter, label, items in sections if items %}
+            <section class="mb-4">
+                <div class="section-title">
+                    <h3>Section {{ letter }}</h3>
+                    <span>{{ label }} &middot; {{ items|length }}</span>
+                </div>
+
+                {% for pq in items %}
+                    <div class="question-box">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div class="flex-grow-1">
+                                <span class="question-num">Q{{ pq.order_index }}.</span>
+                                <span class="q-text">{{ pq.question.question_text }}</span>
+                            </div>
+                            <span class="question-marks-badge flex-shrink-0">{{ pq.marks_allocated }} {{ 'mark' if pq.marks_allocated == 1 else 'marks' }}</span>
+                        </div>
+
+                        {% if pq.question.options %}
+                            <div class="row g-2 mt-1">
+                                {% for opt in pq.question.options %}
+                                    <div class="col-sm-6"><div class="option-chip">{{ opt }}</div></div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="q-tags">
+                            <span class="tag-chapter">{{ pq.question.chapter.name }}</span>
+                            {{ solved_badge(previous.get(pq.question_id)) }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </section>
+        {% endfor %}
+
+        <div class="text-center pt-4 border-top">
+            {% if paper.status == 'submitted' %}
+                <a href="{{ url_for('results', paper_id=paper.id) }}" class="btn btn-primary-custom px-4">
+                    <i class="bi bi-award me-1"></i> View solutions and analysis
+                </a>
+            {% else %}
+                <a href="{{ url_for('attempt_paper', paper_id=paper.id) }}" class="btn btn-primary-custom px-4">
+                    <i class="bi bi-pencil-square me-1"></i> Start attempting
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% from "_macros.html" import level_pill %}
+
+{% block title %}Make a Paper{% endblock %}
+{% block page_title %}Make a practice paper{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <form action="{{ url_for('generate_paper') }}" method="POST" id="generatePaperForm">
+        <div class="row g-4">
+            <div class="col-lg-7">
+
+                <!-- Step 1 -->
+                <div class="custom-card mb-4">
+                    <div class="custom-card-body">
+                        <div class="step-title"><span class="step-num">1</span> What do you want to practise?</div>
+
+                        <label for="subject_id" class="form-label small fw-semibold text-secondary">Subject</label>
+                        <select name="subject_id" id="subject_id" class="form-select form-select-lg fs-6 mb-3" required>
+                            {% for sub in subjects %}
+                                <option value="{{ sub.id }}" {% if sub.name == 'Mathematics' and sub.class_level == 10 %}selected{% endif %}>
+                                    Class {{ sub.class_level }} &middot; {{ sub.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="form-label small fw-semibold text-secondary mb-0">Chapters (pick one or more)</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" id="btnSelectAll">All</button>
+                                <button type="button" class="btn btn-outline-secondary" id="btnDeselectAll">None</button>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column gap-2" id="chaptersContainer">
+                            {% for sub in subjects %}
+                                {% for ch in sub.chapters %}
+                                    {% set perf = topic_perf_map.get(ch.id) %}
+                                    <label class="choice-row chapter-item" data-subject-id="{{ sub.id }}">
+                                        <input class="form-check-input" type="checkbox" name="chapter_ids" value="{{ ch.id }}"
+                                               {% if sub.name == 'Mathematics' and sub.class_level == 10 %}checked{% endif %}>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-semibold text-dark">{{ ch.name }}</div>
+                                            <div class="small text-muted">{{ ch.questions|length }} questions available</div>
+                                        </div>
+                                        {{ level_pill(perf.status if perf and perf.has_data else 'Unattempted') }}
+                                    </label>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="custom-card mb-4">
+                    <div class="custom-card-body">
+                        <div class="step-title"><span class="step-num">2</span> How big should it be?</div>
+
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            <button type="button" class="btn btn-outline-primary preset-mark-btn rounded-pill px-3" data-marks="20">Quick quiz &middot; 20</button>
+                            <button type="button" class="btn btn-outline-primary preset-mark-btn rounded-pill px-3" data-marks="30">Practice &middot; 30</button>
+                            <button type="button" class="btn btn-outline-primary preset-mark-btn rounded-pill px-3" data-marks="50">Unit test &middot; 50</button>
+                            <button type="button" class="btn btn-outline-primary preset-mark-btn rounded-pill px-3" data-marks="80">Full exam &middot; 80</button>
+                        </div>
+
+                        <label for="total_marks" class="form-label small fw-semibold text-secondary">Total marks</label>
+                        <div class="input-group mb-4" style="max-width: 220px;">
+                            <input type="number" name="total_marks" id="total_marks" class="form-control fw-bold" value="30" min="10" max="100" step="1" required>
+                            <span class="input-group-text">marks</span>
+                        </div>
+
+                        <label for="difficulty_preference" class="form-label small fw-semibold text-secondary">How hard?</label>
+                        <select name="difficulty_preference" id="difficulty_preference" class="form-select">
+                            <option value="Mixed" selected>A mix of easy, medium and hard (like the real exam)</option>
+                            <option value="Easy">Easy &middot; direct formulas</option>
+                            <option value="Medium">Medium &middot; standard problems</option>
+                            <option value="Hard">Hard &middot; multi-step problems</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="custom-card">
+                    <div class="custom-card-body">
+                        <div class="step-title"><span class="step-num">3</span> Where should the questions come from?</div>
+
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label class="choice-card" id="labelModeCurriculum">
+                                    <input class="form-check-input" type="radio" name="generation_mode" value="Curriculum" checked onchange="handleModeChange(this.value)">
+                                    <div>
+                                        <div class="fw-semibold text-dark"><i class="bi bi-collection me-1 text-primary"></i> Question bank</div>
+                                        <div class="small text-muted">Ready straight away</div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="choice-card" id="labelModeAI">
+                                    <input class="form-check-input" type="radio" name="generation_mode" value="AI (LLM)" onchange="handleModeChange(this.value)">
+                                    <div>
+                                        <div class="fw-semibold text-dark"><i class="bi bi-stars me-1 text-primary"></i> Written by AI</div>
+                                        <div class="small text-muted">Brand-new questions, takes up to a minute</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="aiPromptSection" class="mt-3" style="display: none;">
+                            <label for="custom_prompt" class="form-label small fw-semibold text-secondary">Anything the AI should focus on? (optional)</label>
+                            <input type="text" name="custom_prompt" id="custom_prompt" class="form-control" placeholder="e.g. word problems">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary and button -->
+            <div class="col-lg-5">
+                <div class="custom-card sticky-top shadow-sm" style="top: 90px;">
+                    <div class="custom-card-body">
+                        <div class="fw-semibold mb-1">How your marks will be shared</div>
+                        <p class="text-secondary small mb-3">Chapters you find harder get more marks.</p>
+
+                        <div id="adaptivePreviewContainer">
+                            <div class="text-center py-4 text-muted small">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                Working it out...
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary-custom btn-lg" id="btnSubmitGenerate">
+                                <i class="bi bi-magic me-2"></i> Make my paper
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Shown while the paper is being made, so the page does not look frozen -->
+<div class="loading-overlay" id="loadingOverlay" aria-live="polite">
+    <div class="loading-box">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <div class="fw-semibold" id="loadingTitle">Making your paper...</div>
+        <div class="small text-muted" id="loadingText">This only takes a moment.</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/paper.js') }}"></script>
+<script>
+    function handleModeChange(mode) {
+        const isAI = mode === 'AI (LLM)';
+        document.getElementById('aiPromptSection').style.display = isAI ? 'block' : 'none';
+        document.getElementById('labelModeAI').classList.toggle('selected', isAI);
+        document.getElementById('labelModeCurriculum').classList.toggle('selected', !isAI);
+        document.getElementById('btnSubmitGenerate').innerHTML = isAI
+            ? '<i class="bi bi-stars me-2"></i> Make my paper with AI'
+            : '<i class="bi bi-magic me-2"></i> Make my paper';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        handleModeChange('Curriculum');
+
+        // Quick-size buttons
+        document.querySelectorAll('.preset-mark-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const marksInput = document.getElementById('total_marks');
+                marksInput.value = btn.dataset.marks;
+                marksInput.dispatchEvent(new Event('input'));
+            });
+        });
+
+        // Only show the chapters of the chosen subject
+        const subjectSelect = document.getElementById('subject_id');
+        const chapterItems = document.querySelectorAll('.chapter-item');
+
+        function filterChaptersBySubject() {
+            chapterItems.forEach(item => {
+                const show = item.dataset.subjectId === subjectSelect.value;
+                item.style.display = show ? 'flex' : 'none';
+                if (!show) item.querySelector('input[type="checkbox"]').checked = false;
+            });
+            document.getElementById('total_marks')?.dispatchEvent(new Event('input'));
+        }
+        subjectSelect.addEventListener('change', filterChaptersBySubject);
+        filterChaptersBySubject();
+
+        document.getElementById('btnSelectAll')?.addEventListener('click', () => {
+            chapterItems.forEach(item => {
+                if (item.dataset.subjectId === subjectSelect.value) item.querySelector('input[type="checkbox"]').checked = true;
+            });
+            document.getElementById('total_marks')?.dispatchEvent(new Event('input'));
+        });
+        document.getElementById('btnDeselectAll')?.addEventListener('click', () => {
+            chapterItems.forEach(item => { item.querySelector('input[type="checkbox"]').checked = false; });
+            document.getElementById('total_marks')?.dispatchEvent(new Event('input'));
+        });
+
+        // Wait screen + guard against picking no chapter
+        document.getElementById('generatePaperForm').addEventListener('submit', (event) => {
+            const anyChapter = document.querySelector('input[name="chapter_ids"]:checked');
+            if (!anyChapter) {
+                event.preventDefault();
+                document.getElementById('adaptivePreviewContainer').innerHTML =
+                    '<div class="notice notice-solved"><i class="bi bi-exclamation-circle"></i><div>Pick at least one chapter first.</div></div>';
+                return;
+            }
+            const isAI = document.querySelector('input[name="generation_mode"]:checked').value === 'AI (LLM)';
+            document.getElementById('loadingTitle').textContent = isAI ? 'The AI is writing your questions...' : 'Making your paper...';
+            document.getElementById('loadingText').textContent = isAI ? 'This can take up to a minute. Please keep this page open.' : 'This only takes a moment.';
+            document.getElementById('loadingOverlay').classList.add('show');
+        });
+    });
+</script>
+{% endblock %}
